@@ -4,7 +4,7 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, ShellAPI;
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, ShellAPI, IOUtils, Registry;
 
 type
   TFormMain = class(TForm)
@@ -12,8 +12,8 @@ type
     ComboBoxResolutions: TComboBox;
     ButtonPatch: TButton;
     StatusBar1: TStatusBar;
-    ButtonPatchAndCreateTextues: TButton;
     Label2: TLabel;
+    ComboBoxLang: TComboBox;
     procedure FormCreate(Sender: TObject);
     procedure ComboBoxResolutionsChange(Sender: TObject);
     procedure ButtonPatchClick(Sender: TObject);
@@ -33,12 +33,17 @@ type
     Procedure Start();
   end;
 
-  TImageInfo = record
-    path:string;
-    name:string;
+  TSize = record
     width:integer;
     height:integer;
   end;
+
+  TImageInfo = record
+    path:string;
+    name:string;
+  end;
+
+
 
   TResolution = record
     width:integer;
@@ -51,28 +56,28 @@ const
   IMAGES_COUNT = 20;
   Images:array[0..IMAGES_COUNT-1] of TImageInfo =
   (
-    (path:'Resource\Icons\intf\';name:'Back_hback.tga'; width:2048; height:1024;),
-    (path:'Resource\Icons\intf\';name:'Back_mperia.tga'; width:2048; height:2048;),
-    (path:'Resource\Icons\intf\';name:'Back_xodus.tga'; width:2048; height:1024;),
-    (path:'Resource\Icons\intf\';name:'intf.tga'; width:2048; height:2048;),
+    (path:'Resource\Icons\intf\';name:'Back_hback.tga';),
+    (path:'Resource\Icons\intf\';name:'Back_mperia.tga'; ),
+    (path:'Resource\Icons\intf\';name:'Back_xodus.tga'; ),
+    (path:'Resource\Icons\intf\';name:'intf.tga'; ),
 
-    (path:'Resource\Icons\MainMenu\';name:'Logo_legion.tga'; width:256; height:512;),
-    (path:'Resource\Icons\MainMenu\';name:'Main_menu.tga'; width:1024; height:2048;),
-    (path:'Resource\Icons\MainMenu\';name:'main_menu_logo.tga'; width:1024; height:256;),
-    (path:'Resource\Icons\MainMenu\';name:'New_death.tga'; width:2048; height:2048;),
-    (path:'Resource\Icons\MainMenu\';name:'New_menu.tga'; width:2048; height:2048;),
-    (path:'Resource\Icons\MainMenu\';name:'New_statistik.tga'; width:2048; height:2048;),
+    (path:'Resource\Icons\MainMenu\';name:'Logo_legion.tga';),
+    (path:'Resource\Icons\MainMenu\';name:'Main_menu.tga'; ),
+    (path:'Resource\Icons\MainMenu\';name:'main_menu_logo.tga';),
+    (path:'Resource\Icons\MainMenu\';name:'New_death.tga'; ),
+    (path:'Resource\Icons\MainMenu\';name:'New_menu.tga'; ),
+    (path:'Resource\Icons\MainMenu\';name:'New_statistik.tga'; ),
 
-    (path:'Resource\Icons\Portraits\';name:'Portrait1.tga'; width:256; height:256;),
-    (path:'Resource\Icons\Portraits\';name:'Portrait2.tga'; width:256; height:256;),
-    (path:'Resource\Icons\Portraits\';name:'Portrait2x.tga'; width:256; height:256;),
-    (path:'Resource\Icons\Portraits\';name:'Portrait3.tga'; width:256; height:256;),
-    (path:'Resource\Icons\Portraits\';name:'Portrait3x.tga'; width:256; height:256;),
-    (path:'Resource\Icons\Portraits\';name:'Portrait4.tga'; width:256; height:256;),
-    (path:'Resource\Icons\Portraits\';name:'Portrait5.tga'; width:256; height:256;),
-    (path:'Resource\Icons\Portraits\';name:'Portrait6.tga'; width:256; height:256;),
-    (path:'Resource\Icons\Portraits\';name:'Portrait6x.tga'; width:256; height:256;),
-    (path:'Resource\Icons\Portraits\';name:'Portrait7.tga'; width:256; height:256;)
+    (path:'Resource\Icons\Portraits\';name:'Portrait1.tga'; ),
+    (path:'Resource\Icons\Portraits\';name:'Portrait2.tga'; ),
+    (path:'Resource\Icons\Portraits\';name:'Portrait2x.tga'; ),
+    (path:'Resource\Icons\Portraits\';name:'Portrait3.tga'; ),
+    (path:'Resource\Icons\Portraits\';name:'Portrait3x.tga'; ),
+    (path:'Resource\Icons\Portraits\';name:'Portrait4.tga'; ),
+    (path:'Resource\Icons\Portraits\';name:'Portrait5.tga'; ),
+    (path:'Resource\Icons\Portraits\';name:'Portrait6.tga'; ),
+    (path:'Resource\Icons\Portraits\';name:'Portrait6x.tga'; ),
+    (path:'Resource\Icons\Portraits\';name:'Portrait7.tga'; )
   );
 
   RESOLUTION_PATTERN_LENGTH = 24;
@@ -97,59 +102,131 @@ const
   );
 
   ApplicationName:string = 'perimeter.exe';
-
-  RESOLUTIONS_COUNT = 18;
-  Resolutions: array[0..RESOLUTIONS_COUNT-1] of TResolution =
-  (
-    (width:320;height:240;),
-    (width:480;height:576;),
-    (width:640;height:480;),
-    (width:854;height:480;),
-    (width:960;height:540;),
-    (width:1152;height:864;),
-    (width:1400;height:1050;),
-    (width:1440;height:900;),
-    (width:1536;height:960;),
-    (width:1600;height:1200;),
-    (width:1680;height:1050;),
-    (width:1920;height:1080;),
-    (width:2048;height:1536;),
-    (width:2560;height:1440;),
-    (width:3200;height:1800;),
-    (width:5120;height:2880;),
-    (width:6400;height:4800;),
-    (width:7680;height:4320;)
-  );
-
+var
+  Resolutions:array of TResolution;
+  SourceResolutions:array of TResolution;
 
 implementation
 
 {$R *.dfm}
+type
+ TAnoPipe=record
+    Input : THandle;
+    Output: THandle;
+  end;
 
-Function CheckResolutionTexturesFolder(widthStr:string):boolean;
+function ExecAndCapture(const ACmdLine: string; var AOutput: string): Integer;
+const
+  cBufferSize = 2048;
+var
+  vBuffer: Pointer;
+  vStartupInfo: TStartUpInfo;
+  vSecurityAttributes: TSecurityAttributes;
+  vReadBytes: DWord;
+  vProcessInfo: TProcessInformation;
+  vStdInPipe : TAnoPipe;
+  vStdOutPipe: TAnoPipe;
+begin
+  Result := 0;
+
+  with vSecurityAttributes do
+  begin
+    nlength := SizeOf(TSecurityAttributes);
+    binherithandle := True;
+    lpsecuritydescriptor := nil;
+  end;
+
+  // Create anonymous pipe for standard input
+  if not CreatePipe(vStdInPipe.Output, vStdInPipe.Input, @vSecurityAttributes, 0) then
+    raise Exception.Create('Failed to create pipe for standard input. System error message: ' + SysErrorMessage(GetLastError));
+
+  try
+    // Create anonymous pipe for standard output (and also for standard error)
+    if not CreatePipe(vStdOutPipe.Output, vStdOutPipe.Input, @vSecurityAttributes, 0) then
+      raise Exception.Create('Failed to create pipe for standard output. System error message: ' + SysErrorMessage(GetLastError));
+
+    try
+      GetMem(vBuffer, cBufferSize);
+      try
+        // initialize the startup info to match our purpose
+        FillChar(vStartupInfo, Sizeof(TStartUpInfo), #0);
+        vStartupInfo.cb         := SizeOf(TStartUpInfo);
+        vStartupInfo.wShowWindow:= SW_HIDE;  // we don't want to show the process
+        // assign our pipe for the process' standard input
+        vStartupInfo.hStdInput  := vStdInPipe.Output;
+        // assign our pipe for the process' standard output
+        vStartupInfo.hStdOutput := vStdOutPipe.Input;
+        vStartupInfo.dwFlags    := STARTF_USESTDHANDLES or STARTF_USESHOWWINDOW;
+
+        if not CreateProcess(nil
+                             , PChar(ACmdLine)
+                             , @vSecurityAttributes
+                             , @vSecurityAttributes
+                             , True
+                             , NORMAL_PRIORITY_CLASS
+                             , nil
+                             , nil
+                             , vStartupInfo
+                             , vProcessInfo) then
+          raise Exception.Create('Failed creating the console process. System error msg: ' + SysErrorMessage(GetLastError));
+
+        try
+          // wait until the console program terminated
+          while WaitForSingleObject(vProcessInfo.hProcess, 50)=WAIT_TIMEOUT do
+            Sleep(0);
+
+          // clear the output storage
+          AOutput := '';
+          // Read text returned by the console program in its StdOut channel
+          repeat
+            ReadFile(vStdOutPipe.Output, vBuffer^, cBufferSize, vReadBytes, nil);
+            if vReadBytes > 0 then
+            begin
+              AOutput := AOutput + StrPas(PAnsiChar(vBuffer));
+              Inc(Result, vReadBytes);
+            end;
+          until (vReadBytes < cBufferSize);
+        finally
+          CloseHandle(vProcessInfo.hProcess);
+          CloseHandle(vProcessInfo.hThread);
+        end;
+      finally
+        FreeMem(vBuffer);
+      end;
+    finally
+      CloseHandle(vStdOutPipe.Input);
+      CloseHandle(vStdOutPipe.Output);
+    end;
+  finally
+    CloseHandle(vStdInPipe.Input);
+    CloseHandle(vStdInPipe.Output);
+  end;
+end;
+
+Function CheckResolutionTexturesFolder(widthStr:string; heightStr:string):boolean;
 var
   i:integer;
 begin
   Result:=false;
-  if not DirectoryExists('Resource\Icons\intf\'+widthStr) then
+  if not DirectoryExists('CustomResolution\Resource\Icons\intf\'+widthStr+'x'+heightStr) then
     Exit;
-  if not DirectoryExists('Resource\Icons\MainMenu\'+widthStr) then
+  if not DirectoryExists('CustomResolution\Resource\Icons\MainMenu\'+widthStr+'x'+heightStr) then
     Exit;
-  if not DirectoryExists('Resource\Icons\Portraits\'+widthStr) then
+  if not DirectoryExists('CustomResolution\Resource\Icons\Portraits\'+widthStr+'x'+heightStr) then
     Exit;
 
   for I := 0 to IMAGES_COUNT-1 do
-    if not FileExists(Images[i].path+widthStr+'\'+Images[i].name) then
+    if not FileExists('CustomResolution\'+Images[i].path+widthStr+'x'+heightStr+'\'+Images[i].name) then
       Exit;
 
   Result:=true;
 end;
 
-Procedure MakeResolutionDir(dir:string; resolutionWidth:integer);
+Procedure MakeResolutionDir(dir:string; resolutionWidth,resolutionHeight:integer);
 var
   s:string;
 begin
-  s:=dir+IntToStr(resolutionWidth);
+  s:=dir+IntToStr(resolutionWidth)+'x'+IntToStr(resolutionHeight);
   if DirectoryExists(s) then
     Exit;
   mkdir(s);
@@ -173,22 +250,66 @@ var
   s:string;
   StringList:TStringList;
   F:integer;
+  aspect:single;
+  src:string;
+  dst:string;
+  GenF:TextFile;
+  res:string;
+  Size:TSize;
+  p:integer;
+  minDiff:single;
+  minID:integer;
+  diff:single;
+var R: TRegistry;
 begin
   resolution:=Resolutions[ComboBoxResolutions.ItemIndex];
   if not GraphicsAvailable then begin
-    MakeResolutionDir('Resource\Icons\intf\',resolution.width);
-    MakeResolutionDir('Resource\Icons\MainMenu\',resolution.width);
-    MakeResolutionDir('Resource\Icons\Portraits\',resolution.width);
+    MakeResolutionDir('CustomResolution\Resource\Icons\intf\',resolution.width,resolution.height);
+    MakeResolutionDir('CustomResolution\Resource\Icons\MainMenu\',resolution.width,resolution.height);
+    MakeResolutionDir('CustomResolution\Resource\Icons\Portraits\',resolution.width,resolution.height);
 
-    xScale:=resolution.width / 1600;
-    yScale:=resolution.height / 1200;
+    AssignFile(GenF,'CustomResolution\Resource\Icons\MainMenu\'+IntToStr(resolution.width)+'x'+IntToStr(resolution.height)+'\Gen');
+    Rewrite(GenF);
+    CloseFile(GenF);
+
+    aspect:=resolution.width / resolution.height;
+
+    minDiff:=abs(SourceResolutions[0].width/SourceResolutions[0].height-aspect);
+    minID:=0;
+    for i := 1 to Length(SourceResolutions)-1 do begin
+       diff:=abs(SourceResolutions[i].width/SourceResolutions[i].height - aspect);
+       if diff<minDiff then begin
+         minDiff:=diff;
+         minID:=i;
+       end;
+    end;
+
+
+    dst:=IntToStr(resolution.width)+'x'+IntToStr(resolution.height);
+    src:=IntToStr(SourceResolutions[minID].width)+'x'+IntToStr(SourceResolutions[minID].height);
+    xScale:=resolution.width / SourceResolutions[minID].width;
+    yScale:=resolution.height / SourceResolutions[minID].height;
+
     for i := 0 to IMAGES_COUNT-1 do begin
-      if not FileExists(Images[i].path+IntToStr(resolution.width)+'\'+Images[i].name) then begin
-        StatusBar1.SimpleText:='Processing: '+Images[i].path+IntToStr(resolution.width)+'\'+Images[i].name;
+      if not FileExists('CustomResolution\'+Images[i].path+dst+'\'+Images[i].name) then begin
+        StatusBar1.SimpleText:='Processing: '+'CustomResolution\'+Images[i].path+dst+'\'+Images[i].name;
         Application.ProcessMessages;
 
-        newWidth:=trunc(Images[i].width*xScale);
-        newHeight:=trunc(Images[i].height*yScale);
+        ExecAndCapture('ImageMagick\identify.exe '+' -format "%wx%h" "CustomResolution\'+Images[i].path+src+'\'+Images[i].name+'" > '+'"CustomResolution\'+Images[i].path+src+'\'+Images[i].name+'.info"',res);
+
+        p:=pos('x',res);
+        if p>0 then begin
+          if TryStrToInt(copy(res,1,p-1),Size.width) and TryStrToInt(copy(res,p+1),Size.height) then begin
+
+          end
+          else begin
+            ShowMessage('Cant create new resolution. Incorrect source '+src);
+            Exit;
+          end;
+        end;
+
+        newWidth:=trunc(Size.width*xScale);
+        newHeight:=trunc(Size.height*yScale);
         newPOTWidth:=getPOT(newWidth);
         newPOTHeight:=getPOT(newHeight);
 
@@ -198,7 +319,7 @@ begin
         se.Wnd:=0;
         se.lpVerb:=nil;
         se.lpFile:='ImageMagick\convert.exe';
-        se.lpParameters:=PWideChar('"'+Images[i].path+'1600'+'\'+Images[i].name+'"'+' -resize '+IntToStr(newWidth)+'x'+IntToStr(newHeight)+'! '+'"'+Images[i].path+IntToStr(resolution.width)+'\'+'tmp'+Images[i].name+'"');
+        se.lpParameters:=PWideChar('"CustomResolution\'+Images[i].path+src+'\'+Images[i].name+'"'+' -resize '+IntToStr(newWidth)+'x'+IntToStr(newHeight)+'! '+'"CustomResolution\'+Images[i].path+dst+'\'+'tmp'+Images[i].name+'"');
         se.lpDirectory:=nil;
         se.nShow:=SW_HIDE;
         se.hInstApp:=0;
@@ -212,7 +333,7 @@ begin
         se.Wnd:=0;
         se.lpVerb:=nil;
         se.lpFile:='ImageMagick\convert.exe';
-        se.lpParameters:=PWideChar('"'+Images[i].path+IntToStr(resolution.width)+'\'+'tmp'+Images[i].name+'"'+' -gravity southeast -background transparent -splice '+IntToStr(newPOTWidth-newWidth)+'x'+IntToStr(newPOTHeight-newHeight)+' '+'"'+Images[i].path+IntToStr(resolution.width)+'\'+Images[i].name+'"');
+        se.lpParameters:=PWideChar('"CustomResolution\'+Images[i].path+dst+'\'+'tmp'+Images[i].name+'"'+' -gravity southeast -background transparent -splice '+IntToStr(newPOTWidth-newWidth)+'x'+IntToStr(newPOTHeight-newHeight)+' '+'"CustomResolution\'+Images[i].path+dst+'\'+Images[i].name+'"');
         se.lpDirectory:=nil;
         se.nShow:=SW_HIDE;
         se.hInstApp:=0;
@@ -223,6 +344,20 @@ begin
       end;
     end;
   end;
+
+  ZeroMemory(@se,sizeof(se));
+  se.cbSize:=sizeof(se);
+  se.fMask:=SEE_MASK_NOCLOSEPROCESS;
+  se.Wnd:=0;
+  se.lpVerb:=nil;
+  se.lpFile:=PWideChar('resolutions\'+IntToStr(resolution.width)+'x'+IntToStr(resolution.height)+'.bat');
+  se.lpParameters:=PWideChar(ComboBoxLang.Items[ComboBoxLang.ItemIndex]);
+  se.lpDirectory:=nil;
+  se.nShow:=SW_SHOWNORMAL;
+  se.hInstApp:=0;
+  ShellExecuteEx(@se);
+  WaitForSingleObject(se.hProcess,INFINITE);
+
 
   s:=IntToStr(resolution.width)+'x'+IntToStr(resolution.height);
 
@@ -258,8 +393,17 @@ begin
     StringList.SaveToFile('Perimeter.ini');
     StringList.Free();
 
+  R := TRegistry.Create();
+  R.RootKey:=HKEY_CURRENT_USER;
+  try
+    if R.OpenKey('Software\Codemasters\Perimeter\Intf', True) then begin
+      R.WriteString('Locale', ComboBoxLang.Items[ComboBoxLang.ItemIndex]);
+    end;
+  finally
+    R.Free;
     ShowMessage('Resolution set');
     Close();
+  end;
 end;
 
 procedure TFormMain.CheckResolutionTextures;
@@ -271,10 +415,7 @@ begin
     Exit;
 
   resolution:=Resolutions[ComboBoxResolutions.ItemIndex];
-  GraphicsAvailable:=CheckResolutionTexturesFolder(IntToStr(resolution.width));
-
-  ButtonPatch.Visible:=GraphicsAvailable;
-  ButtonPatchAndCreateTextues.Visible:=not GraphicsAvailable;
+  GraphicsAvailable:=CheckResolutionTexturesFolder(IntToStr(resolution.width),IntToStr(resolution.height));
 end;
 
 function TFormMain.CheckSequense(start, size: integer;
@@ -301,11 +442,47 @@ end;
 procedure TFormMain.FormCreate(Sender: TObject);
 var
   i:integer;
+  fullName,fileName, folderName:string;
+
+  R:TResolution;
+  p:integer;
 begin
   ComboBoxResolutions.Items.Clear();
-  for i := 0 to RESOLUTIONS_COUNT-1 do
-    ComboBoxResolutions.Items.Add(IntToStr(Resolutions[i].width)+'x'+IntToStr(Resolutions[i].height));
+  for fullName in TDirectory.GetFiles('resolutions\') do begin
+    if UpperCase(ExtractFileExt(fullName))='.BAT' then begin
+      fileName:=ExtractFileName(fullName);
+      fileName:=copy(fileName, 1, length(filename)-4);
+      p:=pos('x',fileName);
+      if p>0 then begin
+        if TryStrToInt(copy(fileName,1,p-1),R.width) and TryStrToInt(copy(fileName,p+1),R.height) then begin
+          SetLength(Resolutions,Length(Resolutions)+1);
+          Resolutions[Length(Resolutions)-1]:=R;
+          ComboBoxResolutions.Items.Add(IntToStr(R.width)+'x'+IntToStr(R.height));
+        end;
+      end;
+    end;
+  end;
   ComboBoxResolutions.ItemIndex:=-1;
+
+  for fullName in TDirectory.GetDirectories('CustomResolution\Resource\Icons\MainMenu\') do begin
+    folderName:=ExtractFileName(fullName);
+    p:=pos('x',folderName);
+    if p>0 then begin
+      if TryStrToInt(copy(folderName,1,p-1),R.width) and TryStrToInt(copy(folderName,p+1),R.height) then begin
+        if CheckResolutionTexturesFolder(IntToStr(r.width),IntToStr(r.height)) then begin
+          if not FileExists('CustomResolution\Resource\Icons\MainMenu\'+IntToStr(r.width)+'x'+IntToStr(r.height)+'\Gen') then begin
+            SetLength(SourceResolutions,Length(SourceResolutions)+1);
+            SourceResolutions[Length(SourceResolutions)-1]:=R;
+          end;
+        end;
+      end;
+    end;
+  end;
+
+  if Length(SourceResolutions)=0 then begin
+    ShowMessage('cant find source textures to generate new resolutions');
+    Close;
+  end;
 end;
 
 Procedure TFormMain.GetAddresses();
@@ -338,7 +515,15 @@ var
   F:integer;
   w,h:integer;
   i:integer;
+  StringList:TStringList;
 begin
+  if not FileExists('Perimeter.ini') then begin
+    ShowMessage('Critical error: Config "Perimeter.ini" not found.');
+    Close();
+    Exit;
+  end;
+
+
   F:=FileOpen(ApplicationName, fmOpenRead);
   if (F=-1) then begin
     ShowMessage('Critical error: Application "'+ApplicationName+'" not found.');
@@ -377,12 +562,27 @@ begin
   w:=ApplicationData[ResolutionAddress[0]+0] + ApplicationData[ResolutionAddress[0]+1]*256;
   h:=ApplicationData[ResolutionAddress[0]+4] + ApplicationData[ResolutionAddress[0]+5]*256;
 
-  for i := 0 to RESOLUTIONS_COUNT-1 do begin
+  for i := 0 to Length(Resolutions)-1 do begin
     if (Resolutions[i].width=w) and (Resolutions[i].height=h) then begin
       ComboBoxResolutions.ItemIndex:=i;
       break;
     end;
   end;
+
+  StringList:=TStringList.Create;
+  StringList.LoadFromFile('Perimeter.ini');
+
+  for i := 0 to StringList.Count-1 do begin
+    if pos('DefaultLanguage=Russian',StringList.Strings[i])>0 then begin
+      ComboBoxLang.ItemIndex:=0;
+      break;
+    end;
+    if pos('DefaultLanguage=English',StringList.Strings[i])>0 then begin
+      ComboBoxLang.ItemIndex:=1;
+      break;
+    end;
+  end;
+  StringList.Free();
 
   CheckResolutionTextures();
 end;

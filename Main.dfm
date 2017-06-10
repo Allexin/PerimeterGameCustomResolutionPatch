@@ -2,7 +2,7 @@ object FormMain: TFormMain
   Left = 0
   Top = 0
   BorderStyle = bsDialog
-  Caption = 'Perimeter GW Custom Resolution'
+  Caption = 'Perimeter GW Custom Resolution and fixes'
   ClientHeight = 121
   ClientWidth = 390
   Color = clBtnFace
@@ -24,11 +24,11 @@ object FormMain: TFormMain
     Caption = 'Resolution:'
   end
   object Label2: TLabel
-    Left = 302
+    Left = 296
     Top = 87
-    Width = 81
+    Width = 87
     Height = 13
-    Caption = 'Create by @!!ex'
+    Caption = 'Created by @!!ex'
   end
   object ComboBoxResolutions: TComboBox
     Left = 8
@@ -40,7 +40,7 @@ object FormMain: TFormMain
     OnChange = ComboBoxResolutionsChange
   end
   object ButtonPatch: TButton
-    Left = 157
+    Left = 307
     Top = 54
     Width = 75
     Height = 25
@@ -56,13 +56,15 @@ object FormMain: TFormMain
     Panels = <>
     SimplePanel = True
   end
-  object ButtonPatchAndCreateTextues: TButton
-    Left = 117
+  object ComboBoxLang: TComboBox
+    Left = 8
     Top = 54
-    Width = 156
-    Height = 25
-    Caption = 'Patch and create textures'
+    Width = 145
+    Height = 21
+    Style = csDropDownList
     TabOrder = 3
-    OnClick = ButtonPatchClick
+    Items.Strings = (
+      'Russian'
+      'English')
   end
 end
