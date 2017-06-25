@@ -14,9 +14,16 @@ type
     StatusBar1: TStatusBar;
     Label2: TLabel;
     ComboBoxLang: TComboBox;
+    ListBoxLog: TListBox;
+    Label3: TLabel;
+    CheckBoxFullScreen: TCheckBox;
+    CheckBoxFreeCamera: TCheckBox;
+    CheckBoxEditorMode: TCheckBox;
+    CheckBoxSplash: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure ComboBoxResolutionsChange(Sender: TObject);
     procedure ButtonPatchClick(Sender: TObject);
+    procedure CheckBoxEditorModeClick(Sender: TObject);
   private
     ApplicationData:PByteArray;
     ApplicationSize:integer;
@@ -31,6 +38,7 @@ type
   public
     { Public declarations }
     Procedure Start();
+    Procedure AddLog(s:string);
   end;
 
   TSize = record
@@ -239,6 +247,44 @@ begin
     Result:=Result*2;
 end;
 
+procedure TFormMain.AddLog(s: string);
+begin
+  ListBoxLog.Items.Add(s);
+end;
+
+Function FixResolutionText(s:string):string;
+var
+  i:integer;
+begin
+  Result:='';
+  for i := 1 to Length(s) do
+    if ((s[i]>='0') and (s[i]<='9')) or (s[i]='x') then
+      Result:=Result+s[i];
+end;
+
+Function ParseKeyValue(s:string; var key:string; var value:string):boolean;
+var
+  p:integer;
+begin
+   p:=pos('=',s);
+   if p>0 then begin
+     key:=copy(s,1,p-1);
+     value:=copy(s,p+1);
+     Result:=true;
+   end
+   else begin
+     Result:=false;
+   end;
+end;
+
+Function boolToNumber(b:boolean):string;
+begin
+  if b then
+    Result:='1'
+  else
+    Result:='0';
+end;
+
 procedure TFormMain.ButtonPatchClick(Sender: TObject);
 var
   resolution:TResolution;
@@ -260,10 +306,12 @@ var
   minDiff:single;
   minID:integer;
   diff:single;
+  key,value:string;
 var R: TRegistry;
 begin
   resolution:=Resolutions[ComboBoxResolutions.ItemIndex];
   if not GraphicsAvailable then begin
+    AddLog('graphics not ready for this resolution');
     MakeResolutionDir('CustomResolution\Resource\Icons\intf\',resolution.width,resolution.height);
     MakeResolutionDir('CustomResolution\Resource\Icons\MainMenu\',resolution.width,resolution.height);
     MakeResolutionDir('CustomResolution\Resource\Icons\Portraits\',resolution.width,resolution.height);
@@ -292,10 +340,13 @@ begin
 
     for i := 0 to IMAGES_COUNT-1 do begin
       if not FileExists('CustomResolution\'+Images[i].path+dst+'\'+Images[i].name) then begin
+        AddLog('auto rescale file '+Images[i].name);
         StatusBar1.SimpleText:='Processing: '+'CustomResolution\'+Images[i].path+dst+'\'+Images[i].name;
         Application.ProcessMessages;
 
         ExecAndCapture('ImageMagick\identify.exe '+' -format "%wx%h" "CustomResolution\'+Images[i].path+src+'\'+Images[i].name+'" > '+'"CustomResolution\'+Images[i].path+src+'\'+Images[i].name+'.info"',res);
+        AddLog('original image resoluion:'+res);
+        res:=FixResolutionText(res);
 
         p:=pos('x',res);
         if p>0 then begin
@@ -304,6 +355,7 @@ begin
           end
           else begin
             ShowMessage('Cant create new resolution. Incorrect source '+src);
+            AddLog('can''t parse image resolution. please copy this log and open bug on github');
             Exit;
           end;
         end;
@@ -312,6 +364,7 @@ begin
         newHeight:=trunc(Size.height*yScale);
         newPOTWidth:=getPOT(newWidth);
         newPOTHeight:=getPOT(newHeight);
+        AddLog('new image resoluion:'+IntToStr(newPOTWidth)+'x'+IntToStr(newPOTHeight));
 
         ZeroMemory(@se,sizeof(se));
         se.cbSize:=sizeof(se);
@@ -345,6 +398,7 @@ begin
     end;
   end;
 
+  AddLog('start resolution script');
   ZeroMemory(@se,sizeof(se));
   se.cbSize:=sizeof(se);
   se.fMask:=SEE_MASK_NOCLOSEPROCESS;
@@ -372,22 +426,52 @@ begin
       else
         ApplicationData[ResolutionCaptionAddress[0]+i]:=$00;
 
+    AddLog('patching Perimeter.exe');
     F:=FileOpen(ApplicationName, fmOpenWrite);
     if (F=-1) then begin
       ShowMessage('Error: Can''t write to file "'+ApplicationName+'"');
+      AddLog('patching failed. Check rights and clsoe all applications.');
       Exit;
     end;
     FileWrite(F, ApplicationData^, ApplicationSize);
     FileClose(F);
 
+    AddLog('patching Perimeter.init');
     StringList:=TStringList.Create;
     StringList.LoadFromFile('Perimeter.ini');
 
     for i := 0 to StringList.Count-1 do begin
-      if pos('ScreenSizeX=',StringList.Strings[i])>0 then
-        StringList.Strings[i]:='ScreenSizeX='+IntToStr(resolution.width);
-      if pos('ScreenSizeY=',StringList.Strings[i])>0 then
-        StringList.Strings[i]:='ScreenSizeY='+IntToStr(resolution.height);
+      if ParseKeyValue(StringList.Strings[i],key,value) then begin
+        if key='ScreenSizeX' then begin
+          StringList.Strings[i]:='ScreenSizeX='+IntToStr(resolution.width);
+          AddLog('ScreenSizeX - patched to '+IntToStr(resolution.width));
+        end
+        else
+        if key='ScreenSizeY' then begin
+          StringList.Strings[i]:='ScreenSizeY='+IntToStr(resolution.height);
+          AddLog('ScreenSizeY - patched to '+IntToStr(resolution.height));
+        end
+        else
+        if key='FullScreen' then begin
+          StringList.Strings[i]:='FullScreen='+boolToNumber(CheckBoxFullScreen.Checked);
+          AddLog('FullScreen - patched to '+BoolToStr(CheckBoxFullScreen.Checked,true));
+        end
+        else
+        if key='CameraRestriction' then begin
+          StringList.Strings[i]:='CameraRestriction='+boolToNumber(not CheckBoxFreeCamera.Checked);
+          AddLog('CameraRestriction - patched to '+BoolToStr(not CheckBoxFreeCamera.Checked,true));
+        end
+        else
+        if key='StartSplash' then begin
+          StringList.Strings[i]:='StartSplash='+boolToNumber(CheckBoxSplash.Checked);
+          AddLog('StartSplash - patched to '+BoolToStr(CheckBoxSplash.Checked,true));
+        end
+        else
+        if key='MissionEdit' then begin
+          StringList.Strings[i]:='MissionEdit='+boolToNumber(CheckBoxEditorMode.Checked);
+          AddLog('MissionEdit - patched to '+BoolToStr(CheckBoxEditorMode.Checked,true));
+        end;
+      end;
     end;
 
     StringList.SaveToFile('Perimeter.ini');
@@ -397,12 +481,28 @@ begin
   R.RootKey:=HKEY_CURRENT_USER;
   try
     if R.OpenKey('Software\Codemasters\Perimeter\Intf', True) then begin
+      AddLog('Set locale to '+ComboBoxLang.Items[ComboBoxLang.ItemIndex]);
       R.WriteString('Locale', ComboBoxLang.Items[ComboBoxLang.ItemIndex]);
     end;
   finally
     R.Free;
     ShowMessage('Resolution set');
+    AddLog('Resolution set');
     Close();
+  end;
+end;
+
+procedure TFormMain.CheckBoxEditorModeClick(Sender: TObject);
+begin
+  if CheckBoxEditorMode.Checked then begin
+    CheckBoxFullScreen.Enabled:=false;
+    CheckBoxSplash.Enabled:=false;
+    CheckBoxFullScreen.Checked:=false;
+    CheckBoxSplash.Checked:=false;
+  end
+  else begin
+    CheckBoxFullScreen.Enabled:=true;
+    CheckBoxSplash.Enabled:=true;
   end;
 end;
 
@@ -510,12 +610,15 @@ begin
   end;
 end;
 
+
+
 procedure TFormMain.Start;
 var
   F:integer;
   w,h:integer;
   i:integer;
   StringList:TStringList;
+  key,value:string;
 begin
   if not FileExists('Perimeter.ini') then begin
     ShowMessage('Critical error: Config "Perimeter.ini" not found.');
@@ -573,16 +676,33 @@ begin
   StringList.LoadFromFile('Perimeter.ini');
 
   for i := 0 to StringList.Count-1 do begin
-    if pos('DefaultLanguage=Russian',StringList.Strings[i])>0 then begin
-      ComboBoxLang.ItemIndex:=0;
-      break;
-    end;
-    if pos('DefaultLanguage=English',StringList.Strings[i])>0 then begin
-      ComboBoxLang.ItemIndex:=1;
-      break;
+    if ParseKeyValue(StringList.Strings[i],key,value) then begin
+      if key='DefaultLanguage' then begin
+        if value='Russian' then
+          ComboBoxLang.ItemIndex:=0
+        else
+          ComboBoxLang.ItemIndex:=1;
+      end
+      else
+      if key='FullScreen' then begin
+        CheckBoxFullScreen.Checked:=value='1';
+      end
+      else
+      if key='CameraRestriction' then begin
+        CheckBoxFreeCamera.Checked:=value='0';
+      end
+      else
+      if key='StartSplash' then begin
+        CheckBoxSplash.Checked:=value='1';
+      end
+      else
+      if key='MissionEdit' then begin
+        CheckBoxEditorMode.Checked:=value='1';
+      end;
     end;
   end;
   StringList.Free();
+  CheckBoxEditorModeClick(self);
 
   CheckResolutionTextures();
 end;
