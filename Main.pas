@@ -488,6 +488,7 @@ begin
     R.Free;
     ShowMessage('Resolution set');
     AddLog('Resolution set');
+    ListBoxLog.Items.SaveToFile('custom_resolution_log.txt');
     Close();
   end;
 end;
