@@ -3,7 +3,7 @@ object FormMain: TFormMain
   Top = 0
   BorderStyle = bsDialog
   Caption = 'Perimeter GW Custom Resolution and fixes'
-  ClientHeight = 447
+  ClientHeight = 209
   ClientWidth = 391
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -16,7 +16,7 @@ object FormMain: TFormMain
   OnCreate = FormCreate
   DesignSize = (
     391
-    447)
+    209)
   PixelsPerInch = 96
   TextHeight = 13
   object Label1: TLabel
@@ -35,11 +35,21 @@ object FormMain: TFormMain
   end
   object Label3: TLabel
     Left = 8
-    Top = 173
+    Top = -65
     Width = 21
     Height = 13
     Anchors = [akLeft, akBottom]
     Caption = 'Log:'
+    ExplicitTop = 173
+  end
+  object ListBoxLog: TListBox
+    Left = 8
+    Top = 192
+    Width = 375
+    Height = 230
+    Anchors = [akLeft, akTop, akRight]
+    ItemHeight = 13
+    TabOrder = 4
   end
   object ComboBoxResolutions: TComboBox
     Left = 8
@@ -61,13 +71,11 @@ object FormMain: TFormMain
   end
   object StatusBar1: TStatusBar
     Left = 0
-    Top = 428
+    Top = 190
     Width = 391
     Height = 19
     Panels = <>
     SimplePanel = True
-    ExplicitTop = 102
-    ExplicitWidth = 390
   end
   object ComboBoxLang: TComboBox
     Left = 8
@@ -75,19 +83,15 @@ object FormMain: TFormMain
     Width = 145
     Height = 21
     Style = csDropDownList
-    TabOrder = 3
+    TabOrder = 2
     Items.Strings = (
+      'Use default'
       'Russian'
-      'English')
-  end
-  object ListBoxLog: TListBox
-    Left = 8
-    Top = 192
-    Width = 375
-    Height = 230
-    Anchors = [akLeft, akTop, akRight, akBottom]
-    ItemHeight = 13
-    TabOrder = 4
+      'English'
+      'French'
+      'German'
+      'Italian'
+      'Spanish')
   end
   object CheckBoxFullScreen: TCheckBox
     Left = 8
@@ -121,7 +125,7 @@ object FormMain: TFormMain
     Top = 100
     Width = 97
     Height = 17
-    Caption = 'Start splash'
+    Caption = 'Show intro'
     TabOrder = 8
   end
 end

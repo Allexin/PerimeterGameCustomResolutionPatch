@@ -30,6 +30,8 @@ type
     ResolutionAddress:array of integer;
     ResolutionCaptionAddress:array of integer;
     GraphicsAvailable:boolean;
+    OldResoltuion:integer;
+    FDefaultLanguage:string;
 
     { Private declarations }
     Function CheckSequense(start:integer; size:integer; sequense:PByteArray):boolean;
@@ -258,7 +260,9 @@ var
 begin
   Result:='';
   for i := 1 to Length(s) do
-    if ((s[i]>='0') and (s[i]<='9')) or (s[i]='x') then
+    if (s[i]='|') then
+      Exit
+    else
       Result:=Result+s[i];
 end;
 
@@ -307,136 +311,152 @@ var
   minID:integer;
   diff:single;
   key,value:string;
+  lang:string;
 var R: TRegistry;
 begin
+  ClientHeight:=447;
   resolution:=Resolutions[ComboBoxResolutions.ItemIndex];
-  if not GraphicsAvailable then begin
-    AddLog('graphics not ready for this resolution');
-    MakeResolutionDir('CustomResolution\Resource\Icons\intf\',resolution.width,resolution.height);
-    MakeResolutionDir('CustomResolution\Resource\Icons\MainMenu\',resolution.width,resolution.height);
-    MakeResolutionDir('CustomResolution\Resource\Icons\Portraits\',resolution.width,resolution.height);
+  if (OldResoltuion<>ComboBoxResolutions.ItemIndex) or (ComboBoxLang.ItemIndex<>0) then begin
+    if not GraphicsAvailable then begin
+      AddLog('graphics not ready for this resolution');
+      MakeResolutionDir('CustomResolution\Resource\Icons\intf\',resolution.width,resolution.height);
+      MakeResolutionDir('CustomResolution\Resource\Icons\MainMenu\',resolution.width,resolution.height);
+      MakeResolutionDir('CustomResolution\Resource\Icons\Portraits\',resolution.width,resolution.height);
 
-    AssignFile(GenF,'CustomResolution\Resource\Icons\MainMenu\'+IntToStr(resolution.width)+'x'+IntToStr(resolution.height)+'\Gen');
-    Rewrite(GenF);
-    CloseFile(GenF);
+      AssignFile(GenF,'CustomResolution\Resource\Icons\MainMenu\'+IntToStr(resolution.width)+'x'+IntToStr(resolution.height)+'\Gen');
+      Rewrite(GenF);
+      CloseFile(GenF);
 
-    aspect:=resolution.width / resolution.height;
+      aspect:=resolution.width / resolution.height;
 
-    minDiff:=abs(SourceResolutions[0].width/SourceResolutions[0].height-aspect);
-    minID:=0;
-    for i := 1 to Length(SourceResolutions)-1 do begin
-       diff:=abs(SourceResolutions[i].width/SourceResolutions[i].height - aspect);
-       if diff<minDiff then begin
-         minDiff:=diff;
-         minID:=i;
-       end;
-    end;
+      minDiff:=abs(SourceResolutions[0].width/SourceResolutions[0].height-aspect);
+      minID:=0;
+      for i := 1 to Length(SourceResolutions)-1 do begin
+         diff:=abs(SourceResolutions[i].width/SourceResolutions[i].height - aspect);
+         if diff<minDiff then begin
+           minDiff:=diff;
+           minID:=i;
+         end;
+      end;
 
 
-    dst:=IntToStr(resolution.width)+'x'+IntToStr(resolution.height);
-    src:=IntToStr(SourceResolutions[minID].width)+'x'+IntToStr(SourceResolutions[minID].height);
-    xScale:=resolution.width / SourceResolutions[minID].width;
-    yScale:=resolution.height / SourceResolutions[minID].height;
+      dst:=IntToStr(resolution.width)+'x'+IntToStr(resolution.height);
+      src:=IntToStr(SourceResolutions[minID].width)+'x'+IntToStr(SourceResolutions[minID].height);
+      xScale:=resolution.width / SourceResolutions[minID].width;
+      yScale:=resolution.height / SourceResolutions[minID].height;
+      AddLog('rescale from '+src);
 
-    for i := 0 to IMAGES_COUNT-1 do begin
-      if not FileExists('CustomResolution\'+Images[i].path+dst+'\'+Images[i].name) then begin
-        AddLog('auto rescale file '+Images[i].name);
-        StatusBar1.SimpleText:='Processing: '+'CustomResolution\'+Images[i].path+dst+'\'+Images[i].name;
-        Application.ProcessMessages;
+      for i := 0 to IMAGES_COUNT-1 do begin
+        if not FileExists('CustomResolution\'+Images[i].path+dst+'\'+Images[i].name) then begin
+          AddLog('auto rescale file '+Images[i].name);
+          StatusBar1.SimpleText:='Processing: '+'CustomResolution\'+Images[i].path+dst+'\'+Images[i].name;
+          Application.ProcessMessages;
 
-        ExecAndCapture('ImageMagick\identify.exe '+' -format "%wx%h" "CustomResolution\'+Images[i].path+src+'\'+Images[i].name+'" > '+'"CustomResolution\'+Images[i].path+src+'\'+Images[i].name+'.info"',res);
-        AddLog('original image resoluion:'+res);
-        res:=FixResolutionText(res);
+          ExecAndCapture('ImageMagick\identify.exe '+' -format "%wx%h|" "CustomResolution\'+Images[i].path+src+'\'+Images[i].name+'" > '+'"CustomResolution\'+Images[i].path+src+'\'+Images[i].name+'.info"',res);
+          AddLog('image magic output:'+res);
+          res:=FixResolutionText(res);
+          AddLog('original image resoluion:'+res);
 
-        p:=pos('x',res);
-        if p>0 then begin
-          if TryStrToInt(copy(res,1,p-1),Size.width) and TryStrToInt(copy(res,p+1),Size.height) then begin
+          p:=pos('x',res);
+          if p>0 then begin
+            if TryStrToInt(copy(res,1,p-1),Size.width) and TryStrToInt(copy(res,p+1),Size.height) then begin
 
-          end
-          else begin
-            ShowMessage('Cant create new resolution. Incorrect source '+src);
-            AddLog('can''t parse image resolution. please copy this log and open bug on github');
-            Exit;
+            end
+            else begin
+              ShowMessage('Cant create new resolution. Incorrect source '+src);
+              AddLog('can''t parse image resolution. please copy this log and open bug on github');
+              Exit;
+            end;
           end;
+
+          newWidth:=trunc(Size.width*xScale);
+          newHeight:=trunc(Size.height*yScale);
+          newPOTWidth:=getPOT(newWidth);
+          newPOTHeight:=getPOT(newHeight);
+          AddLog('new image resoluion:'+IntToStr(newPOTWidth)+'x'+IntToStr(newPOTHeight));
+
+          ZeroMemory(@se,sizeof(se));
+          se.cbSize:=sizeof(se);
+          se.fMask:=SEE_MASK_NOCLOSEPROCESS;
+          se.Wnd:=0;
+          se.lpVerb:=nil;
+          se.lpFile:='ImageMagick\convert.exe';
+          se.lpParameters:=PWideChar('"CustomResolution\'+Images[i].path+src+'\'+Images[i].name+'"'+' -resize '+IntToStr(newWidth)+'x'+IntToStr(newHeight)+'! '+'"CustomResolution\'+Images[i].path+dst+'\'+'tmp'+Images[i].name+'"');
+          se.lpDirectory:=nil;
+          se.nShow:=SW_HIDE;
+          se.hInstApp:=0;
+          ShellExecuteEx(@se);
+          WaitForSingleObject(se.hProcess,INFINITE);
+
+
+          ZeroMemory(@se,sizeof(se));
+          se.cbSize:=sizeof(se);
+          se.fMask:=SEE_MASK_NOCLOSEPROCESS;
+          se.Wnd:=0;
+          se.lpVerb:=nil;
+          se.lpFile:='ImageMagick\convert.exe';
+          se.lpParameters:=PWideChar('"CustomResolution\'+Images[i].path+dst+'\'+'tmp'+Images[i].name+'"'+' -gravity southeast -background transparent -splice '+IntToStr(newPOTWidth-newWidth)+'x'+IntToStr(newPOTHeight-newHeight)+' '+'"CustomResolution\'+Images[i].path+dst+'\'+Images[i].name+'"');
+          se.lpDirectory:=nil;
+          se.nShow:=SW_HIDE;
+          se.hInstApp:=0;
+          ShellExecuteEx(@se);
+          WaitForSingleObject(se.hProcess,INFINITE);
+
+          DeleteFile(Images[i].path+IntToStr(resolution.width)+'\'+'tmp'+Images[i].name);
         end;
-
-        newWidth:=trunc(Size.width*xScale);
-        newHeight:=trunc(Size.height*yScale);
-        newPOTWidth:=getPOT(newWidth);
-        newPOTHeight:=getPOT(newHeight);
-        AddLog('new image resoluion:'+IntToStr(newPOTWidth)+'x'+IntToStr(newPOTHeight));
-
-        ZeroMemory(@se,sizeof(se));
-        se.cbSize:=sizeof(se);
-        se.fMask:=SEE_MASK_NOCLOSEPROCESS;
-        se.Wnd:=0;
-        se.lpVerb:=nil;
-        se.lpFile:='ImageMagick\convert.exe';
-        se.lpParameters:=PWideChar('"CustomResolution\'+Images[i].path+src+'\'+Images[i].name+'"'+' -resize '+IntToStr(newWidth)+'x'+IntToStr(newHeight)+'! '+'"CustomResolution\'+Images[i].path+dst+'\'+'tmp'+Images[i].name+'"');
-        se.lpDirectory:=nil;
-        se.nShow:=SW_HIDE;
-        se.hInstApp:=0;
-        ShellExecuteEx(@se);
-        WaitForSingleObject(se.hProcess,INFINITE);
-
-
-        ZeroMemory(@se,sizeof(se));
-        se.cbSize:=sizeof(se);
-        se.fMask:=SEE_MASK_NOCLOSEPROCESS;
-        se.Wnd:=0;
-        se.lpVerb:=nil;
-        se.lpFile:='ImageMagick\convert.exe';
-        se.lpParameters:=PWideChar('"CustomResolution\'+Images[i].path+dst+'\'+'tmp'+Images[i].name+'"'+' -gravity southeast -background transparent -splice '+IntToStr(newPOTWidth-newWidth)+'x'+IntToStr(newPOTHeight-newHeight)+' '+'"CustomResolution\'+Images[i].path+dst+'\'+Images[i].name+'"');
-        se.lpDirectory:=nil;
-        se.nShow:=SW_HIDE;
-        se.hInstApp:=0;
-        ShellExecuteEx(@se);
-        WaitForSingleObject(se.hProcess,INFINITE);
-
-        DeleteFile(Images[i].path+IntToStr(resolution.width)+'\'+'tmp'+Images[i].name);
       end;
     end;
+
+    if ComboBoxLang.ItemIndex>0 then
+      lang:=ComboBoxLang.Items[ComboBoxLang.ItemIndex]
+    else
+      lang:=FDefaultLanguage;
+
+
+    AddLog('start resolution script');
+    ZeroMemory(@se,sizeof(se));
+    se.cbSize:=sizeof(se);
+    se.fMask:=SEE_MASK_NOCLOSEPROCESS;
+    se.Wnd:=0;
+    se.lpVerb:=nil;
+    se.lpFile:=PWideChar('resolutions\'+IntToStr(resolution.width)+'x'+IntToStr(resolution.height)+'.bat');
+    se.lpParameters:=PWideChar(lang);
+    se.lpDirectory:=nil;
+    se.nShow:=SW_SHOWNORMAL;
+    se.hInstApp:=0;
+    ShellExecuteEx(@se);
+    WaitForSingleObject(se.hProcess,INFINITE);
+
+
+    s:=IntToStr(resolution.width)+'x'+IntToStr(resolution.height);
+
+      ApplicationData[ResolutionAddress[0]+0]:=resolution.width mod 256;
+      ApplicationData[ResolutionAddress[0]+1]:=resolution.width div 256;
+      ApplicationData[ResolutionAddress[0]+4]:=resolution.height mod 256;
+      ApplicationData[ResolutionAddress[0]+5]:=resolution.height div 256;
+
+      for I := 0 to RESOLUTIONCAPTION_LENGTH-1 do
+        if i<=Length(s) then
+          ApplicationData[ResolutionCaptionAddress[0]+i]:=ord(s[i])
+        else
+          ApplicationData[ResolutionCaptionAddress[0]+i]:=$00;
+
+      AddLog('patching Perimeter.exe');
+      F:=FileOpen(ApplicationName, fmOpenWrite);
+      if (F=-1) then begin
+        ShowMessage('Error: Can''t write to file "'+ApplicationName+'"');
+        AddLog('patching failed. Check rights and clsoe all applications.');
+        Exit;
+      end;
+      FileWrite(F, ApplicationData^, ApplicationSize);
+      FileClose(F);
+  end
+  else begin
+    AddLog('New resolution not select');
+    AddLog('Skip resolution patching');
   end;
 
-  AddLog('start resolution script');
-  ZeroMemory(@se,sizeof(se));
-  se.cbSize:=sizeof(se);
-  se.fMask:=SEE_MASK_NOCLOSEPROCESS;
-  se.Wnd:=0;
-  se.lpVerb:=nil;
-  se.lpFile:=PWideChar('resolutions\'+IntToStr(resolution.width)+'x'+IntToStr(resolution.height)+'.bat');
-  se.lpParameters:=PWideChar(ComboBoxLang.Items[ComboBoxLang.ItemIndex]);
-  se.lpDirectory:=nil;
-  se.nShow:=SW_SHOWNORMAL;
-  se.hInstApp:=0;
-  ShellExecuteEx(@se);
-  WaitForSingleObject(se.hProcess,INFINITE);
-
-
-  s:=IntToStr(resolution.width)+'x'+IntToStr(resolution.height);
-
-    ApplicationData[ResolutionAddress[0]+0]:=resolution.width mod 256;
-    ApplicationData[ResolutionAddress[0]+1]:=resolution.width div 256;
-    ApplicationData[ResolutionAddress[0]+4]:=resolution.height mod 256;
-    ApplicationData[ResolutionAddress[0]+5]:=resolution.height div 256;
-
-    for I := 0 to RESOLUTIONCAPTION_LENGTH-1 do
-      if i<=Length(s) then
-        ApplicationData[ResolutionCaptionAddress[0]+i]:=ord(s[i])
-      else
-        ApplicationData[ResolutionCaptionAddress[0]+i]:=$00;
-
-    AddLog('patching Perimeter.exe');
-    F:=FileOpen(ApplicationName, fmOpenWrite);
-    if (F=-1) then begin
-      ShowMessage('Error: Can''t write to file "'+ApplicationName+'"');
-      AddLog('patching failed. Check rights and clsoe all applications.');
-      Exit;
-    end;
-    FileWrite(F, ApplicationData^, ApplicationSize);
-    FileClose(F);
-
-    AddLog('patching Perimeter.init');
+    AddLog('patching Perimeter.ini');
     StringList:=TStringList.Create;
     StringList.LoadFromFile('Perimeter.ini');
 
@@ -444,32 +464,32 @@ begin
       if ParseKeyValue(StringList.Strings[i],key,value) then begin
         if key='ScreenSizeX' then begin
           StringList.Strings[i]:='ScreenSizeX='+IntToStr(resolution.width);
-          AddLog('ScreenSizeX - patched to '+IntToStr(resolution.width));
+          AddLog('ScreenSizeX - set to '+IntToStr(resolution.width));
         end
         else
         if key='ScreenSizeY' then begin
           StringList.Strings[i]:='ScreenSizeY='+IntToStr(resolution.height);
-          AddLog('ScreenSizeY - patched to '+IntToStr(resolution.height));
+          AddLog('ScreenSizeY - set to '+IntToStr(resolution.height));
         end
         else
         if key='FullScreen' then begin
           StringList.Strings[i]:='FullScreen='+boolToNumber(CheckBoxFullScreen.Checked);
-          AddLog('FullScreen - patched to '+BoolToStr(CheckBoxFullScreen.Checked,true));
+          AddLog('FullScreen - set to '+BoolToStr(CheckBoxFullScreen.Checked,true));
         end
         else
         if key='CameraRestriction' then begin
           StringList.Strings[i]:='CameraRestriction='+boolToNumber(not CheckBoxFreeCamera.Checked);
-          AddLog('CameraRestriction - patched to '+BoolToStr(not CheckBoxFreeCamera.Checked,true));
+          AddLog('CameraRestriction - set to '+BoolToStr(not CheckBoxFreeCamera.Checked,true));
         end
         else
         if key='StartSplash' then begin
           StringList.Strings[i]:='StartSplash='+boolToNumber(CheckBoxSplash.Checked);
-          AddLog('StartSplash - patched to '+BoolToStr(CheckBoxSplash.Checked,true));
+          AddLog('StartSplash - set to '+BoolToStr(CheckBoxSplash.Checked,true));
         end
         else
         if key='MissionEdit' then begin
           StringList.Strings[i]:='MissionEdit='+boolToNumber(CheckBoxEditorMode.Checked);
-          AddLog('MissionEdit - patched to '+BoolToStr(CheckBoxEditorMode.Checked,true));
+          AddLog('MissionEdit - set to '+BoolToStr(CheckBoxEditorMode.Checked,true));
         end;
       end;
     end;
@@ -488,7 +508,7 @@ begin
     R.Free;
     ShowMessage('Resolution set');
     AddLog('Resolution set');
-    ListBoxLog.Items.SaveToFile('custom_resolution_log.txt');
+    ListBoxLog.Items.SaveToFile('custom_resolution.log');
     Close();
   end;
 end;
@@ -535,6 +555,12 @@ begin
   Result:=true;
 end;
 
+Function RoundTo(s:single):string;
+begin
+
+  Result:=IntToStr(trunc(s))+'.'+IntToStr(trunc(Frac(s)*100));
+end;
+
 procedure TFormMain.ComboBoxResolutionsChange(Sender: TObject);
 begin
   CheckResolutionTextures();
@@ -558,7 +584,7 @@ begin
         if TryStrToInt(copy(fileName,1,p-1),R.width) and TryStrToInt(copy(fileName,p+1),R.height) then begin
           SetLength(Resolutions,Length(Resolutions)+1);
           Resolutions[Length(Resolutions)-1]:=R;
-          ComboBoxResolutions.Items.Add(IntToStr(R.width)+'x'+IntToStr(R.height));
+          ComboBoxResolutions.Items.Add(IntToStr(R.width)+'x'+IntToStr(R.height)+' - '+RoundTo(R.Width/R.Height));
         end;
       end;
     end;
@@ -666,9 +692,11 @@ begin
   w:=ApplicationData[ResolutionAddress[0]+0] + ApplicationData[ResolutionAddress[0]+1]*256;
   h:=ApplicationData[ResolutionAddress[0]+4] + ApplicationData[ResolutionAddress[0]+5]*256;
 
+  OldResoltuion:=-1;
   for i := 0 to Length(Resolutions)-1 do begin
     if (Resolutions[i].width=w) and (Resolutions[i].height=h) then begin
       ComboBoxResolutions.ItemIndex:=i;
+      OldResoltuion:=i;
       break;
     end;
   end;
@@ -676,13 +704,12 @@ begin
   StringList:=TStringList.Create;
   StringList.LoadFromFile('Perimeter.ini');
 
+  ComboBoxLang.ItemIndex:=0;
+
   for i := 0 to StringList.Count-1 do begin
     if ParseKeyValue(StringList.Strings[i],key,value) then begin
       if key='DefaultLanguage' then begin
-        if value='Russian' then
-          ComboBoxLang.ItemIndex:=0
-        else
-          ComboBoxLang.ItemIndex:=1;
+        FDefaultLanguage:=value;
       end
       else
       if key='FullScreen' then begin
@@ -706,6 +733,8 @@ begin
   CheckBoxEditorModeClick(self);
 
   CheckResolutionTextures();
+
+
 end;
 
 end.
