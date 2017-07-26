@@ -501,8 +501,8 @@ begin
   R.RootKey:=HKEY_CURRENT_USER;
   try
     if R.OpenKey('Software\Codemasters\Perimeter\Intf', True) then begin
-      AddLog('Set locale to '+ComboBoxLang.Items[ComboBoxLang.ItemIndex]);
-      R.WriteString('Locale', ComboBoxLang.Items[ComboBoxLang.ItemIndex]);
+      AddLog('Set locale to '+Lang);
+      R.WriteString('Locale', Lang);
     end;
   finally
     R.Free;
@@ -574,6 +574,8 @@ var
   R:TResolution;
   p:integer;
 begin
+  ComboBoxLang.Items.LoadFromFile('CustomLanguage.ini');
+  ComboBoxLang.ItemIndex:=0;
   ComboBoxResolutions.Items.Clear();
   for fullName in TDirectory.GetFiles('resolutions\') do begin
     if UpperCase(ExtractFileExt(fullName))='.BAT' then begin
@@ -704,7 +706,7 @@ begin
   StringList:=TStringList.Create;
   StringList.LoadFromFile('Perimeter.ini');
 
-  ComboBoxLang.ItemIndex:=0;
+
 
   for i := 0 to StringList.Count-1 do begin
     if ParseKeyValue(StringList.Strings[i],key,value) then begin
