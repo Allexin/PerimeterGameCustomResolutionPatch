@@ -85,13 +85,7 @@ object FormMain: TFormMain
     Style = csDropDownList
     TabOrder = 2
     Items.Strings = (
-      'Use default'
-      'Russian'
-      'English'
-      'French'
-      'German'
-      'Italian'
-      'Spanish')
+      'Use default')
   end
   object CheckBoxFullScreen: TCheckBox
     Left = 8
